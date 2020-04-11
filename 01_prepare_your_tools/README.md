@@ -9,10 +9,10 @@ Everything else happens inside a docker container.
 # Install Docker
 If you don't have `docker`, follow whatever this page tells you: https://docs.docker.com/get-docker/
 
-Doing everything in docker makes sure what I do here is replicable by you there.
+Doing everything in docker makes sure what I do is replicable by you there.
 
 # Dockerfile
-When you installed docker you are ready to build our images.
+When you installed docker you are ready.
 
 To do that you need a file that defines the steps.
 
