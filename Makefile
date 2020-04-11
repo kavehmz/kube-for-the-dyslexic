@@ -11,7 +11,7 @@ run: build
 	# --name Lets give out container a name. otherwise docker will assign a random one.
 	# -u will let us use our current user inside the container so files we touch there will be under our user and not root.
 	# -e Lets sets the HOME env variable. So our tools tools save their data there.
-	# -v let us to mount a .home dir from current dir ($$PWD) so when we exist the container our settings stays for next time
+	# -v let us to mount a .home dir from current dir ($$PWD) to a location inside the container. When we exit the container our settings stays for next time
 	# -v also let us to mount docker.sock from host (you local machine) into the container so docker command inside can control your dameon (kind app needs it)
 	# -v also let us to mount our repo into /workspace so we can have access to different files we need during this tutorial
 	docker run -ti --rm --name local-k8s-tools \
