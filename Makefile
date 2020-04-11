@@ -17,7 +17,7 @@ run: build
 	docker run -ti --rm --name local-k8s-tools \
 		-u $$(id -u $${USER}):$$(id -g $${USER}) \
 		-e HOME=/workspace/home \
-		-v $$PWD/.home:/workspace/home \
+		-v $$PWD/00_data/home:/workspace/home \
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $$PWD:/workspace \
 		local-k8s-tools
