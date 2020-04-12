@@ -1,6 +1,9 @@
 .PHONY: 01_prepare_your_tools
 
 build:
+	@ # -t will give you images a name (tag)
+	@ # -f we specify which file we want to use to build this image. By default docker will use Dockerfile in current directory.
+	@ # . set the path to build location. Docker has commands like COPY to copy files from this place into your images.
 	docker build -t local-k8s-tools -f 01_prepare_your_tools/Dockerfile . > /dev/null
 
 run: build
@@ -19,3 +22,6 @@ run: build
 		-v /var/run/docker.sock:/var/run/docker.sock \
 		-v $$PWD:/workspace \
 		local-k8s-tools
+
+build-echo:
+	docker build -t local-echo-server -f 00_apps/echo_server/Dockerfile 00_apps/echo_server
