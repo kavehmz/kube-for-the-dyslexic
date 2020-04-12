@@ -71,7 +71,8 @@ func relay(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "[relayed to: %s]: %s\n", req.FormValue("echo_server"), string(body))
+	hostname, _ := os.Hostname()
+	fmt.Fprintf(w, "Relay-Host: %s\nRelay-To: %s\nReply:\n%s", hostname, req.FormValue("echo_server"), string(body))
 }
 
 func main() {

@@ -51,7 +51,8 @@ func livenessProbe(w http.ResponseWriter, req *http.Request) {
 }
 
 func echo(w http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(w, "replied %s\n", req.FormValue("message"))
+	hostname, _ := os.Hostname()
+	fmt.Fprintf(w, "Echo host: %s\nMessage: %s\n", hostname, req.FormValue("message"))
 }
 
 func main() {
