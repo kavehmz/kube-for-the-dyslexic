@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -50,18 +51,37 @@ func livenessProbe(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte("alive"))
 }
 
-func echo(w http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(w, "replied %s\n", req.FormValue("message"))
+func relay(w http.ResponseWriter, req *http.Request) {
+	var netClient = &http.Client{
+		Timeout: time.Second * 2,
+	}
+
+	resp, err := netClient.Get(fmt.Sprintf("http://%s/echo?message=%s", req.FormValue("echo_server"), req.FormValue("message")))
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		w.Write([]byte(fmt.Sprintf("error: %v", err)))
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadGateway)
+		w.Write([]byte(fmt.Sprintf("body error: %v", err)))
+		return
+	}
+
+	fmt.Fprintf(w, "[relayed to: %s]: %s\n", req.FormValue("echo_server"), string(body))
 }
 
 func main() {
 	router := http.NewServeMux()
-	router.HandleFunc("/echo", echo)
+	router.HandleFunc("/relay", relay)
 	router.HandleFunc("/ready", readinessProbe)
 	router.HandleFunc("/alive", livenessProbe)
 
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":8081",
 		Handler: router,
 	}
 
