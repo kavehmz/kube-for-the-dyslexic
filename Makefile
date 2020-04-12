@@ -24,4 +24,7 @@ run: build
 		local-k8s-tools
 
 build-echo:
-	docker build -t local-echo-server -f 00_apps/echo_server/Dockerfile 00_apps/echo_server
+	docker build -t local-echo-server:latest -f 00_apps/Dockerfile 00_apps/echo_server
+
+build-relay:
+	docker build -t local-relay-server:latest -f 00_apps/Dockerfile 00_apps/relay_server
