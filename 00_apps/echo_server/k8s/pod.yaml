@@ -1,0 +1,23 @@
+apiVersion: v1
+# You remember of command we issues to get api-resources! It had a Kind!
+# Using kubectl and this yaml format we saving a resource of Pod kind!
+# kube-scheduler will notice and do something about it!
+kind: Pod
+metadata:
+  # we will set our Pod in our own namespace
+  namespace: my-space
+  name: echo
+  labels:
+    app: echo
+spec:
+  containers:
+  - name: echo-container
+    image: local-echo-server:latest
+    # Default value for this options is Always! But there are two other options Never and IfNotPresent too.
+    # All these options has their use in different cases that you need to try and understand
+    # Here we are loading an image directly to kuberentes nodes using `kind image load` command so we Do Not Want Kubernetes to try anything when image is there!
+    imagePullPolicy: IfNotPresent 
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 8080

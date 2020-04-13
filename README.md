@@ -234,11 +234,156 @@ As you see that single container created a lot of stuff. Lets explain it a bit.
 ### How Kubernetes Works
 Read more here: https://kubernetes.io/docs/concepts/overview/components/
 
-But in general we have the following main part we can check:
+But in general we have three parts:
+* `Control Plane Components`, The Control Plane’s components make global decisions about the cluster (for example, scheduling)
+* `Node Components`, Node components run on every node.
+* `Addons` 
 
 
-#### kube-apiserver
+#### Control Plane Components: kube-apiserver
+Read more here: https://kubernetes.io/docs/concepts/overview/components/#kube-apiserver
 
+The API server is a component of the Kubernetes control plane that exposes the Kubernetes API.
+
+Lets run `kubectl` command again:
+
+```
+$ kubectl --context kind-kind --kubeconfig ~/.kube/config get namespaces
+NAME                 STATUS   AGE
+default              Active   68m
+kube-node-lease      Active   68m
+kube-public          Active   68m
+kube-system          Active   68m
+local-path-storage   Active   67m
+```
+
+Almost all kubectl does is getting the config from `--kubeconfig ~/.kube/config` and connecting to the cluster we want `--context kind-kind` which its address is defined in config file, and sending an API command to `kube-apiserver`! That is it.
+
+Btw if you want to know what types of api calls are available in your cluster try this:
+
+```bash
+$ kubectl --context kind-kind api-resources -o wide
+NAME                              SHORTNAMES   APIGROUP                       NAMESPACED   KIND                             VERBS
+configmaps                        cm                                          true         ConfigMap                        [create delete deletecollection get list patch update watch]
+namespaces                        ns                                          false        Namespace                        [create delete get list patch update watch]
+pods                              po                                          true         Pod                              [create delete deletecollection get list patch update watch]
+.....
+```
+
+It is useful if you check the `Kind` for each api, `VERBS` you can use and if it is `NAMESPACED` or not.
+
+Later you will see how to extend Kuberentes API.
+
+#### Control Plane Components: etcd
+Read more: https://etcd.io/docs
+
+This is an other component which us used as a key value store in as Kubernetes.
+
+Lets try something here. (Notice all these components are in `kube-system`!)
+
+```bash
+$ kubectl --context kind-kind -n kube-system  get pod -owide|grep etcd
+NAME                                         READY   STATUS    RESTARTS   AGE    IP           NODE                 NOMINATED NODE   READINESS GATES
+etcd-kind-control-plane                      1/1     Running   0          5h7m   172.17.0.3   kind-control-plane   <none>           <none>
+...
+```
+
+You can execute a command in a container using `kubectl exec PODNAME COMMAND`. Here we can try the following
+
+```
+$ kubectl --context kind-kind -n kube-system exec ti etcd-kind-control-plane /bin/sh
+# Now you are in a shell inside etcd container.
+# Lets see use the etcd key/value ability ourself.
+# put KEY VALUE
+$ etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://127.0.0.1:2379 put some_key some_value
+
+# Now lets get the value!
+# get KEY
+$ etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://127.0.0.1:2379 get some_key
+some_key
+some_value
+
+# just for fun lets also get what Kubernetes itself saved about this pod!
+# (Pods are the smallest deployable units of computing that can be created and managed in Kubernetes)
+# structure of key is intuitive
+$ etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://127.0.0.1:2379 get /registry/pods/kube-system/etcd-kind-control-plane -w json
+{"header":{"cluster_id":9676036482053611986,"member_id":12858828581462913056,"revision":31446,"raft_term":2},"kvs":[{"key":"L3JlZ2lzdHJ5L3BvZHMva3ViZS1zeXN0ZW0vZXRjZC1raW5kLWNvbnRyb2wtcGxhbmU=","create_revision":249,"mod_revision":284,"version":2,"value":"......=="}],"count":1}
+```
+
+We wont need more than that I think. If you ever needed to create and maintain you own Kubernetes cluster just make yourself familiar with this tool and its administration.
+Otherwise it is unlikely you will need to interact with etcd directly.
+
+
+### Control Plane Components: kube-scheduler
+Read more: https://kubernetes.io/docs/concepts/workloads/pods/pod-overview/
+Control plane component that watches for newly created Pods with no assigned node, and selects a node for them to run on.
+
+Lets explore what Pod means first. And also lets try concept of namespace.
+
+First, in kuberentes we are using containers to run our services. In our case we have a docker image named  that at the moment only exists in the local docker.  
+
+Before you try these command check content of the yaml files first. You might find the comments there useful.
+[Namepsace](./00_apps/echo_server/k8s/my_space.yaml)
+[Pod](./00_apps/echo_server/k8s/pod.yaml)
+```bash
+# Lets create a namespace named `my-space`. check content of the yaml file first
+$ kubectl --context kind-kind apply -f ./00_apps/echo_server/k8s/my_space.yaml
+namespace/my-space created
+
+# Lets create a pod now.
+$ kubectl --context kind-kind apply -f ./00_apps/echo_server/k8s/pod.yaml
+pod/echo created
+```
+
+Now lets see what happened.
+
+```
+$ kubectl --context kind-kind --namespace my-space get pod
+NAME   READY   STATUS             RESTARTS   AGE
+echo   0/1     ImagePullBackOff   0          1m
+
+# error! let get some more info
+$ kubectl --context kind-kind --namespace my-space describe pod echo
+......
+  Warning  Failed     12m (x41 over 3h41m)    kubelet, kind-control-plane  Error: ImagePullBackOff
+  Normal   BackOff    2m48s (x85 over 3h40m)  kubelet, kind-control-plane  Back-off pulling image "local-echo-server:latest"
+```
+
+First, in kuberentes we are using containers to run our services. In our case we have a docker image named `local-echo-server:latest` that at the moment only exists in the local docker. That image is required by the container named `echo-container` (look at the yaml file to find both names).
+Second image we use need to be accessible to the cluster! In nonral situations it means a docker registry like [docker hub](https://hub.docker.com/) or a private one that needs login.
+
+In our case (which is special to kind) we have a command
+```
+kind load docker-image local-echo-server:latest
+Image: "local-echo-server:latest" with ID "sha256:7c6d9d3501eacf69cfe4a1bc9abdd977c366702278ef399f643421f10ee2bb54" not present on node "kind-control-plane"
+```
+
+And now lets check  our state again:
+```
+$ kubectl --context kind-kind --namespace my-space get pod -o wide
+NAME   READY   STATUS    RESTARTS   AGE    IP           NODE                 NOMINATED NODE   READINESS GATES
+echo   1/1     Running   0          5m4s   10.244.1.7   kind-control-plane   <none>           <none>
+```
+
+This time we have one pod `RUNNING` and `READY`.
+
+Notice between the time we were getting `ImagePullBackOff` error and next that we had a running pod we just made the image accessible.
+`kube-scheduler` first noticed we have a new `Pod`. It schedules our pod in a node named `kind-control-plane`. 
+Later we will see the another part of our setup named `kubelet` does a bit more and actually started the container on that node.
+
+### Control Plane Components: kube-controller-manager
 
 #### dns
 kubectl --context kind-kind -n kube-system port-forward coredns-6955765f44-r7drp 32053:53
