@@ -327,6 +327,7 @@ Otherwise it is unlikely you will need to interact with etcd directly.
 
 
 ### Control Plane Components: kube-scheduler
+Read more: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/
 Read more: https://kubernetes.io/docs/concepts/workloads/pods/pod-overview/
 Control plane component that watches for newly created Pods with no assigned node, and selects a node for them to run on.
 
@@ -384,6 +385,54 @@ Notice between the time we were getting `ImagePullBackOff` error and next that w
 Later we will see the another part of our setup named `kubelet` does a bit more and actually started the container on that node.
 
 ### Control Plane Components: kube-controller-manager
+Read more: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/
+In Kubernetes, a controller is a control loop that watches the shared state of the cluster through the apiserver and makes changes attempting to move the current state towards the desired state, for example replication controller, endpoints controller, namespace controller, and serviceaccounts controller.
+
+Document says things like:
+* Node Controller: Responsible for noticing and responding when nodes go down.
+* Replication Controller: Responsible for maintaining the correct number of pods for every replication controller object in the system.
+* Endpoints Controller: Populates the Endpoints object (that is, joins Services & Pods).
+* Service Account & Token Controllers: Create default accounts and API access tokens for new namespaces.
+
+Lets try the `Node Controller` part and see how `kube-controller-manager` reacts when nodes go down.
+
+```
+# first, lets check our nodes and see there is only one
+$ kubectl --context kind-kind  get node
+NAME                 STATUS   ROLES    AGE     VERSION
+kind-control-plane   Ready    master   6m29s   v1.17.0
+
+# now to get comfortable with kind lets delete our cluster and create a new one with two nodes
+$ kind delete cluster
+Deleting cluster "kind" ...
+
+$ kind create cluster --config 00_configs/kind_two_nodes.yaml
+$ kubectl --context kind-kind  get node
+NAME                 STATUS   ROLES    AGE   VERSION
+kind-control-plane   Ready    master   88s   v1.17.0
+kind-worker          Ready    <none>   50s   v1.17.0
+
+# now lets delete the `kind-worker` node.
+kubectl --context kind-kind  delete node kind-worker
+node "kind-worker" deleted
+
+# check the log for `kube-controller-manager`
+$ kubectl --context kind-kind  -n kube-system logs --tail 6 kube-controller-manager-kind-control-plane
+I0413 22:07:38.926126       1 event.go:281] Event(v1.ObjectReference{Kind:"Node", Namespace:"", Name:"kind-worker", UID:"e2dd5c77-7779-49a8-af07-c7ac781a21ce", APIVersion:"", ResourceVersion:"", FieldPath:""}): type: 'Normal' reason: 'RegisteredNode' Node kind-worker event: Registered Node kind-worker in Controller
+I0413 22:09:48.965638       1 event.go:281] Event(v1.ObjectReference{Kind:"Node", Namespace:"", Name:"kind-worker", UID:"e2dd5c77-7779-49a8-af07-c7ac781a21ce", APIVersion:"", ResourceVersion:"", FieldPath:""}): type: 'Normal' reason: 'RemovingNode' Node kind-worker event: Removing Node kind-worker from Controller
+I0413 22:10:38.881643       1 gc_controller.go:77] PodGC is force deleting Pod: kube-system/kube-proxy-jq7qk
+I0413 22:10:38.887413       1 gc_controller.go:188] Forced deletion of orphaned Pod kube-system/kube-proxy-jq7qk succeeded
+I0413 22:10:38.887452       1 gc_controller.go:77] PodGC is force deleting Pod: kube-system/kindnet-4mt6r
+I0413 22:10:38.896510       1 gc_controller.go:188] Forced deletion of orphaned Pod kube-system/kindnet-4mt6r succeeded
+```
+
+### Control Plane Components: cloud-controller-manager
+Read more: https://kubernetes.io/docs/tasks/administer-cluster/running-cloud-controller/
+`cloud-controller-manager` runs controllers that interact with the underlying cloud providers.
+These can overlap with `kube-controller-manager`.
+
+## Node Components
+Node components run on every node, maintaining running pods and providing the Kubernetes runtime environment.
 
 #### dns
 kubectl --context kind-kind -n kube-system port-forward coredns-6955765f44-r7drp 32053:53
