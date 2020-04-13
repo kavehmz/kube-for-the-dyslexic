@@ -120,7 +120,7 @@ Lets run `echo` server and test it.
 
 ```bash
 $ make run-echo
-docker run -ti -p 8080:8080 local-echo-server
+docker run -ti -p 8081:8080 local-echo-server
 fb7a32ccc83faf6ee3058cc12e957a9a03ab439e3d999282273013584459ee53
 ```
 
@@ -131,12 +131,115 @@ You can check our running container and some details using `docker ps` command
 ```
 $ docker ps
 CONTAINER ID        IMAGE               COMMAND                  CREATED              STATUS              PORTS                    NAMES
-fb7a32ccc83f        local-echo-server   "/usr/local/bin/my_s…"   About a minute ago   Up About a minute   0.0.0.0:8080->8080/tcp   condescending_nightingale
+fb7a32ccc83f        local-echo-server   "/usr/local/bin/my_s…"   About a minute ago   Up About a minute   0.0.0.0:8081->8080/tcp   condescending_nightingale
 ```
 
-Now we can try and send a request
+Pay attension to how `PORTS` sections indicates that we have a mapping from 0.0.0.0:8001 in local environemnt to 8080 port in container (on TCP).
+We set an option `-p 8081:8080` for this in our `docker run`.
+
+We can try and send a request. Our app inside container is listening to port 8080 but docker is exposing port 8081:
+
 ```
-$ curl http://localhost:8080/echo?message=hello
+$ curl http://localhost:8081/echo?message=hello
 Echo host: 8c68245116b9
 Message: hello
 ```
+
+Lets stop our container and move on:
+
+```
+make stop-echo
+docker stop local-echo-server
+local-echo-server
+```
+
+If you like start our container and map different ports and see what happens.
+
+### Kubernetes Using kind
+Now we need to create our Kubernetes cluster to run our two apps in there.
+
+As said we will use [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/).
+kind is a tool for running local Kubernetes clusters using Docker container “nodes”.
+
+Verify if you have the kind command ready,
+
+```bash
+$ kind version
+kind v0.7.0 go1.13.6 darwin/amd64
+```
+
+### Create your cluster
+Creating a kuberentes clsuter using kind is simple
+
+```bash
+$ make create-cluster
+kind create cluster
+Creating cluster "kind" ...
+ ✓ Ensuring node image (kindest/node:v1.17.0) 🖼
+ ✓ Preparing nodes 📦
+ ✓ Writing configuration 📜
+ ✓ Starting control-plane 🕹️
+ ✓ Installing CNI 🔌
+ ✓ Installing StorageClass 💾
+Set kubectl context to "kind-kind"
+You can now use your cluster with:
+
+kubectl cluster-info --context kind-kind
+
+Have a nice day! 👋
+```
+
+Now we can inspect our setup.
+
+```bash
+$ docker ps
+CONTAINER ID        IMAGE                  COMMAND                  CREATED              STATUS              PORTS                       NAMES
+ea58ca5b4aaa        kindest/node:v1.17.0   "/usr/local/bin/entr…"   About a minute ago   Up About a minute   127.0.0.1:32772->6443/tcp   kind-control-plane
+```
+
+and lets see if our kubectl command works now.
+
+```bash
+$ kubectl --context kind-kind get all --all-namespaces
+NAMESPACE            NAME                                             READY   STATUS    RESTARTS   AGE
+kube-system          pod/coredns-6955765f44-r7drp                     1/1     Running   0          3m11s
+kube-system          pod/coredns-6955765f44-sz8sz                     1/1     Running   0          3m11s
+kube-system          pod/etcd-kind-control-plane                      1/1     Running   0          3m25s
+kube-system          pod/kindnet-trhvj                                1/1     Running   0          3m11s
+kube-system          pod/kube-apiserver-kind-control-plane            1/1     Running   0          3m25s
+kube-system          pod/kube-controller-manager-kind-control-plane   1/1     Running   0          3m25s
+kube-system          pod/kube-proxy-wxstw                             1/1     Running   0          3m11s
+kube-system          pod/kube-scheduler-kind-control-plane            1/1     Running   0          3m25s
+local-path-storage   pod/local-path-provisioner-7745554f7f-m9t4z      1/1     Running   0          3m11s
+
+NAMESPACE     NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+default       service/kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP                  3m28s
+kube-system   service/kube-dns     ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   3m26s
+
+NAMESPACE     NAME                        DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR                 AGE
+kube-system   daemonset.apps/kindnet      1         1         1       1            1           <none>                        3m25s
+kube-system   daemonset.apps/kube-proxy   1         1         1       1            1           beta.kubernetes.io/os=linux   3m26s
+
+NAMESPACE            NAME                                     READY   UP-TO-DATE   AVAILABLE   AGE
+kube-system          deployment.apps/coredns                  2/2     2            2           3m26s
+local-path-storage   deployment.apps/local-path-provisioner   1/1     1            1           3m24s
+
+NAMESPACE            NAME                                                DESIRED   CURRENT   READY   AGE
+kube-system          replicaset.apps/coredns-6955765f44                  2         2         2       3m11s
+local-path-storage   replicaset.apps/local-path-provisioner-7745554f7f   1         1         1       3m11s
+```
+
+As you see that single container created a lot of stuff. Lets explain it a bit.
+
+### How Kubernetes Works
+Read more here: https://kubernetes.io/docs/concepts/overview/components/
+
+But in general we have the following main part we can check:
+
+
+#### kube-apiserver
+
+
+#### dns
+kubectl --context kind-kind -n kube-system port-forward coredns-6955765f44-r7drp 32053:53
+dig @127.0.0.1 -p 32053 kube-dns.kube-system.svc.cluster.local +tcp

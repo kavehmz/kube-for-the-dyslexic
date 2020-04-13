@@ -31,4 +31,20 @@ build-relay:
 
 run-echo: build-echo
 	@ # -p publishes our container port
-	docker run --rm --name local-echo-server -d -p 8080:8080 local-echo-server:latest
+	docker run --rm --name local-echo-server -d -p 8081:8080 local-echo-server:latest
+
+stop-echo:
+	docker stop local-echo-server
+
+cluster-list-all:
+	@ # kubectl is the command we use to contact our Kuberenetes cluster (to be more accurates its apiserver)
+	@ # --context take a look at ~/.kube/config. There might be different clusters you have access to! kind-kind is name of the one we want to use now. Make sure you always set this parameter or you might use the default one! Who know what is your default!!
+	@ # We can use `get` to request info for specific types of resources in Kuberenetes
+	@ # and in Kuberenetes we have a nice separation concept named namespace. `kube-system` includes many parts of Kuberenetes control plane if you check.
+	kubectl --context kind-kind get all --all-namespaces
+
+create-cluster:
+	kind create cluster
+
+delete-cluster:
+	kind delete cluster
