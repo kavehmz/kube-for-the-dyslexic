@@ -28,3 +28,7 @@ build-echo:
 
 build-relay:
 	docker build -t local-relay-server:latest -f 00_apps/Dockerfile 00_apps/relay_server
+
+run-echo: build-echo
+	@ # -p publishes our container port
+	docker run --rm --name local-echo-server -d -p 8080:8080 local-echo-server:latest

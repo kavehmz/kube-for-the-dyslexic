@@ -82,11 +82,12 @@ func main() {
 	router.HandleFunc("/alive", livenessProbe)
 
 	srv := &http.Server{
-		Addr:    ":8081",
+		Addr:    ":8080",
 		Handler: router,
 	}
 
 	go func() {
+		log.Println("relay listening to :8080")
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			log.Panicf("echo exited with error: %v", err)
 		}

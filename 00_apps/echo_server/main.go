@@ -67,6 +67,7 @@ func main() {
 	}
 
 	go func() {
+		log.Println("echo listening to :8080")
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			log.Panicf("echo exited with error: %v", err)
 		}
