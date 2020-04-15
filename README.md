@@ -1,7 +1,7 @@
 # kube-for-the-dyslexic
 This readme is a step by step explanation of how Kuberentes works.
 
-I tried to write it in a way that doesn't need memorizing anything.
+I tried to write it in a way that doesn't need you memorizing anything.
 
 Just try follow the examples, try them yourself.
 
