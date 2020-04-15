@@ -3,9 +3,7 @@ This readme is a step by step explanation of how Kuberentes works.
 
 I tried to write it in a way that doesn't need you memorizing anything.
 
-Just try follow the examples, try them yourself.
-
-You dont need to concentrate. Just read through and try the examples.
+You don't need to concentrate. Just read through and try the examples.
 
 I will repeat the concepts again and again through this readme.
 
