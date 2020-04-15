@@ -16,7 +16,7 @@ Kubeectl: https://kubernetes.io/docs/tasks/tools/install-kubectl/
 Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 
 
-### Verify Your Tools
+## Verify Your Tools
 
 Make sure your docker is working and you have a recent enough one (>18).
 ```
