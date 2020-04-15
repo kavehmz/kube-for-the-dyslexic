@@ -18,7 +18,7 @@ Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 
 ## Verify Your Tools
 
-Make sure your docker is working and you have a recent enough one (>18).
+Make sure your docker is working and you have a recent enough version (>18).
 ```
 $ docker version
 Client: Docker Engine - Community
