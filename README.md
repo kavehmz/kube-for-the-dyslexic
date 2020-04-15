@@ -10,7 +10,9 @@ I will repeat the concepts again and again through this readme.
 What you need is an installation of `docker`, `kubectl` and a tool named `kind` which is used by Kubernetes team itself for testing.
 
 Docker: https://docs.docker.com/get-docker/
+
 Kubeectl: https://kubernetes.io/docs/tasks/tools/install-kubectl/
+
 Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 
 
