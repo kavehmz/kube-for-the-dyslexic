@@ -1,5 +1,13 @@
 # kube-for-the-dyslexic
-This is a series of demos to show how Kuberntes works.
+This readme is a step by step explanation of how Kuberentes works.
+
+I tried to write it in a way that doesn't need memorizing anything.
+
+Just try follow the examples, try them yourself.
+
+You dont need to concentrate. Just read through and try the examples.
+
+I will repeat the concepts again and again through this readme.
 
 What you need is an installation of `docker`, `kubectl` and a tool named `kind` which is used by Kubernetes team itself for testing.
 
@@ -8,19 +16,18 @@ Kubeectl: https://kubernetes.io/docs/tasks/tools/install-kubectl/
 Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 
 
-### Verify
-Just to make sure you are all set lets try the following commands. You still dont need to understand anything.
-Just relax and try.
+### Verify Your Tools
 
-Make sure your docker us working and you have a recent enough one.
+Make sure your docker is working and you have a recent enough one (>18).
 ```
 $ docker version
+Client: Docker Engine - Community
+ Version:           19.03.8
 
 # Make sure the following works fine.
-# Here you want to run an image named hello-world in a container. This is a simple app and just prints some stuff.
-# You docker will first check if image exists locally and if not docker tried to find it in ALL docker registry servers it knows.
+# Here you want to run an image named `hello-world` in a container. This is a simple app and just prints some stuff.
+# Your docker will first check if image exists locally and if not docker tries to find it in docker registry servers it knows.
 $ docker run hello-world
-docker run hello-world
 Unable to find image 'hello-world:latest' locally
 latest: Pulling from library/hello-world
 1b930d010525: Pull complete
@@ -49,6 +56,14 @@ Creating cluster "kind" ...
 Set kubectl context to "kind-kind"
 You can now use your cluster with:
 
+# Lets check the setup now. You can see what containers are running using the following command.
+# kind started one container named kind-control-plane. This will act a Kuberentes node for kind.
+$ docker ps
+docker ps
+CONTAINER ID        IMAGE                  COMMAND                  CREATED              STATUS              PORTS                       NAMES
+95623bda34ec        kindest/node:v1.17.0   "/usr/local/bin/entr…"   About a minute ago   Up About a minute   127.0.0.1:32772->6443/tcp   kind-control-plane
+
+
 # The kubectl cluster-info prints information about the control plane and add-ons. You will see later what they mean.
 # For now we have the api server (as main component) and only KubeDNS (as addon)
 $ kubectl cluster-info --context kind-kind
@@ -58,29 +73,28 @@ KubeDNS is running at https://127.0.0.1:32772/api/v1/namespaces/kube-system/serv
 # Do you remember we ran hello-world in docker? Kuberentes also uses containers to run stuff.
 # Lets just run the same image in Kubernetes too. 
 # Don't worry about details at all. Just try and get comfortable with the concepts.
-
 # create a deployment that uses our image. Deployments set details like which image, how many replica, max memory, ... 
 $ kubectl --context kind-kind create  deployment hello --image=hello-world
 deployment.apps/hello created
 
-#  But deployments are just setting the details. Our containers run inside Pods!
+# Deployments set the details.
 $ kubectl --context kind-kind get deployment -o wide
 NAME    READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS    IMAGES        SELECTOR
 hello   0/1     1            0           3m4s   hello-world   hello-world   app=hello
 
-# Pods are the resources in Kubertenes that actually show a group of contaierns running in one node (yes you can run multiple images in a single pod)
+# But our containers run inside Pods!
+# Pods are the resources in Kubertenes that present a group of contaierns running in one node (yes you can run multiple images in a single pod)
 $ kubectl --context kind-kind get pod -owide
 NAME                     READY   STATUS             RESTARTS   AGE     IP           NODE                 NOMINATED NODE   READINESS GATES
 hello-67d96bb797-9rffr   0/1     CrashLoopBackOff   5          4m10s   10.244.0.6   kind-control-plane   <none>           <none>
 
-# Ignore the CrashLoopBackOff and now look at the pods log
-# You pod name will be different. 
-# Mine is `hello-67d96bb797-9rffr`.
+# Ignore the CrashLoopBackOff and look at the pods log
+# Your pod name will be different. Mine is `hello-67d96bb797-9rffr`.
 $ kubectl --context kind-kind logs -f hello-67d96bb797-9rffr
 Hello from Docker!
 
-# Lets push it a bit further. Still you just need to try and get comfortable with concepts and tools.
-# this time lets describe and see what we find
+# Lets push it a bit further.
+# This time lets use `describe` and see what we can find
 $ kubectl --context kind-kind describe deployment hello
 Name:                   hello
 Namespace:              default
@@ -120,7 +134,7 @@ kubectl --context kind-kind get replicaset
 NAME               DESIRED   CURRENT   READY   AGE
 hello-67d96bb797   1         1         0       14m
 
-# and describe it to get more info.
+# And describe it to get more info.
 $ kubectl --context kind-kind describe replicaset
 Name:           hello-67d96bb797
 Namespace:      default
@@ -149,22 +163,18 @@ Events:
   ----    ------            ----  ----                   -------
   Normal  SuccessfulCreate  14m   replicaset-controller  Created pod: hello-67d96bb797-9rffr
 
-# It might show now that we created a deployment `hello`, deployment created a repicaset `hello-67d96bb797` and replicaset created a pod `hello-67d96bb797-9rffr`
-# later you will see one part of kuberetnes get the event for pod creation and pull the image and started the containers as it was indicated in pod details!.
-# so our application ran in a node named `kind-control-plane`
+# Last describe show our repicaset `hello-67d96bb797` created a pod named `hello-67d96bb797-9rffr`.
+# So Deployment created ReplicaSet which in turn created our Pod.
+# Later you will see the next part of Kuberetnes flow which a service named `kubelet` uses the Pod definition and pulls our image and starts our container as it was indicated in Pod details.
 $ kubectl --context kind-kind get pod
 NAME                     READY   STATUS             RESTARTS   AGE
 hello-67d96bb797-9rffr   0/1     CrashLoopBackOff   9          24m
+
+# Delete the kind cluster we just created
+# Create/Delete are light actions for kind. We can always start with a new cluster if we like
+$ kind delete cluster
+Deleting cluster "kind" ...
 ```
-
-# Lets check the setup now. You can see what containers are running using the following command.
-$ docker ps
-docker ps
-CONTAINER ID        IMAGE                  COMMAND                  CREATED              STATUS              PORTS                       NAMES
-95623bda34ec        kindest/node:v1.17.0   "/usr/local/bin/entr…"   About a minute ago   Up About a minute   127.0.0.1:32772->6443/tcp   kind-control-plane
-
-
-
 
 ### Docker
 You need to install docker. Take a look at the [README](01_prepare_your_tools/README.md) if you want.
