@@ -571,7 +571,7 @@ $ kubectl --context kind-kind  get node
 NAME                 STATUS   ROLES    AGE     VERSION
 kind-control-plane   Ready    master   6m29s   v1.17.0
 
-# now to get comfortable with kind lets delete our cluster and create a new one with two nodes
+# now to get comfortable with `kind` lets delete our cluster and create a new one with two nodes
 $ kind delete cluster
 Deleting cluster "kind" ...
 
@@ -602,6 +602,79 @@ These can overlap with `kube-controller-manager`.
 
 ## Node Components
 Node components run on every node, maintaining running pods and providing the Kubernetes runtime environment.
+
+### Node Components: kubelet
+An agent that runs on each node in the cluster. It makes sure that containers are running in a Pod.
+
+Lets check all these:
+```
+# first lets delete any current Kuberentes cluster in `kind`
+$ kind delete cluster
+Deleting cluster "kind" ...
+
+# then lets create a two node cluster
+$ kind create cluster
+$ kubectl --context kind-kind get pod --all-namespaces
+NAMESPACE     NAME                                         READY   STATUS    RESTARTS   AGE
+kube-system   etcd-kind-control-plane                      1/1     Running   0          5s
+kube-system   kube-apiserver-kind-control-plane            1/1     Running   0          5s
+kube-system   kube-controller-manager-kind-control-plane   1/1     Running   0          5s
+kube-system   kube-scheduler-kind-control-plane            1/1     Running   0          5s
+```
+
+First notice there is no pod named kubelet. kubelets is the component that is responsible for running pods so unlike many other components kubelets themselves are not install as Pods.
+
+So we will do an experiment. We will create a Pod, this time for running nginx, first while kubelet is not running and then we will start kubelet and see what happens.
+
+```
+kubectl --context kind-kind apply -f <(cat <<EOF
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "name": "nginx",
+    "labels": {
+      "role": "web"
+    }
+  },
+  "spec": {
+    "containers": [
+      {
+        "name": "nginx",
+        "image": "nginx",
+        "ports": [
+          {
+            "containerPort": 80
+          }
+        ]
+      }
+    ]
+  }
+}
+EOF
+)
+pod/ngnix created
+
+kubectl --context kind-kind describe pod nginx
+
+docker exec -ti kind-control-plane /bin/bash -c 'systemctl status kubelet'
+docker exec -ti kind-control-plane /bin/bash -c 'systemctl stop kubelet'
+
+kubectl --context kind-kind get nodes
+kubectl --context kind-kind describe node kind-control-plane
+
+
+```
+
+
+### Node Components: kube-proxy
+kube-proxy is a network proxy that runs on each node in your cluster, implementing part of the Kubernetes Service concept.
+
+kube-proxy maintains network rules on nodes. These network rules allow network communication to your Pods from network sessions inside or outside of your cluster.
+
+kube-proxy uses the operating system packet filtering layer if there is one and it’s available. Otherwise, kube-proxy forwards the traffic itself
+
+
 
 #### dns
 kubectl --context kind-kind -n kube-system port-forward coredns-6955765f44-r7drp 32053:53
