@@ -627,32 +627,7 @@ First notice there is no pod named kubelet. kubelets is the component that is re
 So we will do an experiment. We will create a Pod, this time for running nginx, first while kubelet is not running and then we will start kubelet and see what happens.
 
 ```
-kubectl --context kind-kind apply -f <(cat <<EOF
-{
-  "apiVersion": "v1",
-  "kind": "Pod",
-  "metadata": {
-    "name": "nginx",
-    "labels": {
-      "role": "web"
-    }
-  },
-  "spec": {
-    "containers": [
-      {
-        "name": "nginx",
-        "image": "nginx",
-        "ports": [
-          {
-            "containerPort": 80
-          }
-        ]
-      }
-    ]
-  }
-}
-EOF
-)
+kubectl --context kind-kind apply -f <(echo '{"apiVersion": "v1","kind": "Pod","metadata": {"name": "nginx"},"spec": {"containers": [{"name": "nginx","image": "nginx"}]}}')
 pod/ngnix created
 
 kubectl --context kind-kind describe pod nginx
@@ -674,8 +649,170 @@ kube-proxy maintains network rules on nodes. These network rules allow network c
 
 kube-proxy uses the operating system packet filtering layer if there is one and it’s available. Otherwise, kube-proxy forwards the traffic itself
 
+### Node Components: Container Runtime
+The container runtime is the software that is responsible for running containers.
+
+Kubernetes supports several container runtimes: Docker, containerd, CRI-O, and any implementation of the Kubernetes CRI (Container Runtime Interface).
+
+Here we are doing it a bit nested in `kind`.
+
+`kind create cluster` creates Kubernetes cluster by using docker to start containers and each containers represend one Node in our cluster.
+
+```
+$ docker ps 
+CONTAINER ID        IMAGE                  COMMAND                  CREATED             STATUS              PORTS                       NAMES
+7cf0a3b6e82b        kindest/node:v1.17.0   "/usr/local/bin/entr…"   16 hours ago        Up 16 hours         127.0.0.1:32776->6443/tcp   kind-control-plane
+```
+
+Then in those nodes, for example `kind-control-plane`, in the running debin based container, our image has `containerd` installed which runs our containers inside `kind-control-plane`.
+
+Lets see what is running inside our node
+```
+$ docker  exec -ti kind-control-plane /bin/bash -c 'ps aux|grep container'
+root     67673  1.7  1.5 2153040 61980 ?       Ssl  11:47   0:07 /usr/local/bin/containerd
+```
+
+And if you want to list the running containers inside `kind-control-plane` you can try
+```
+# inside the container there is a different tools installed for interaction with containerd. It is `crictl`. 
+# https://github.com/kubernetes-sigs/cri-tools/blob/master/docs/crictl.md
+$ docker  exec -ti kind-control-plane /bin/bash -c 'crictl ps '
+CONTAINER           IMAGE               CREATED             STATE               NAME                      ATTEMPT             POD ID
+b99d95197df05       5a8dfb2ca7312       7 minutes ago       Running             nginx                     1                   dc3e5938a2c6a
+1fe5a9591be65       70f311871ae12       16 hours ago        Running             coredns                   0                   0ec4a02f58b0e
+62be4c1062748       9d12f9848b99f       16 hours ago        Running             local-path-provisioner    0                   4629dc92cdd6d
+fff092b0ccd01       70f311871ae12       16 hours ago        Running             coredns                   0                   575c12113852d
+8a13f67aa95b3       2186a1a396deb       16 hours ago        Running             kindnet-cni               0                   8eb7a258a3ffe
+e2bba59647f43       551eaeb500fda       16 hours ago        Running             kube-proxy                0                   ea35384f77c7d
+6c7ff0a980651       303ce5db0e90d       16 hours ago        Running             etcd                      0                   98339fdb5233f
+c7b024bf42b37       134ad2332e042       16 hours ago        Running             kube-apiserver            0                   3f35a132350a3
+656999c9ec16e       09a204f38b41d       16 hours ago        Running             kube-scheduler            0                   a6953c193d5c4
+9808ba4a683f0       7818d75a7d002       16 hours ago        Running             kube-controller-manager   0                   f56480b04bee2
+```
+
+## Addons
+Addons use Kubernetes resources (DaemonSet, Deployment, etc) to implement cluster features. Because these are providing cluster-level features, namespaced resources for addons belong within the kube-system namespace.
 
 
-#### dns
-kubectl --context kind-kind -n kube-system port-forward coredns-6955765f44-r7drp 32053:53
-dig @127.0.0.1 -p 32053 kube-dns.kube-system.svc.cluster.local +tcp
+
+
+#### Addons: DNS
+Read more: https://kubernetes.io/docs/concepts/overview/components/#dns
+
+While the other addons are not strictly required, all Kubernetes clusters should have cluster DNS, as many examples rely on it.
+
+Cluster DNS is a DNS server, in addition to the other DNS server(s) in your environment, which serves DNS records for Kubernetes services.
+
+Lets find our DNS server. 
+
+```
+# Here instead of just getting all pods and using a `grep` to filter for dns we are getting all pods which are labelled as `k8s-app=kube-dns`
+# You can check definition of pods and their labels using `describe pod pod_name` command if you don't know the labels for a specific pod
+$ kubectl --context kind-kind -n kube-system get pod -owide -l k8s-app=kube-dns
+NAME                       READY   STATUS    RESTARTS   AGE   IP           NODE                 NOMINATED NODE   READINESS GATES
+coredns-6955765f44-7nqw2   1/1     Running   0          16h   10.244.0.2   kind-control-plane   <none>           <none>
+coredns-6955765f44-b7szn   1/1     Running   0          16h   10.244.0.4   kind-control-plane   <none>           <none>
+```
+
+Now lets see why we say there is our dns servers. To check their functionality we will do a `port-forward` which opens a `tcp` (at tis moment no udp) connection from our local environemnt to the pod in Kubernetes cluster. It is a useful investigation tool.
+
+```
+# just notice your pod name will be different. Also later you will see we could do the same thing using DNS service.
+$ kubectl --context kind-kind -n kube-system port-forward coredns-6955765f44-7nqw2 32053:53
+Forwarding from 127.0.0.1:32053 -> 53
+Forwarding from [::1]:32053 -> 53
+```
+
+Here we forward a local port `32053` to Pod port `53`.
+
+Now open a new terminal and try the following:
+```
+# here we use a dig command to query our dns server, at local machine (address 127.0.0.1), at port 32053 (otherwise default port is 53), using tcp protocol (port-forward does not support udp yet).
+# we are asking for IP of github.com
+$ dig @127.0.0.1 -p 32053 +tcp github.com
+;; ANSWER SECTION:
+github.com.		22	IN	A	140.82.113.3
+
+# You can try another dns server like CLoudflare's one just to compare.
+# This time we dont need to ask for tcp protocol or a non standard port. so command is shorter
+$ dig @1.1.1.1 github.com
+;; ANSWER SECTION:
+github.com.		19	IN	A	140.82.114.3
+```
+
+But that is not all our DSN server in the cluster does. It also resolve the address for services we have inside the cluster.
+Actually that is what our DSN server is installed!
+
+But first lets find some services. We will learm more about what services are later.
+
+```
+$kubectl --context kind-kind -n default get services
+NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   16h
+```
+
+We can find one service in `default` namespace. It is a service for our api-server.
+Its IP inside cluster is `10.96.0.1`. But this IP could be different and can change!
+Our applications inside Kuberentes might not be able to rely on static IP to find each other.
+So there is a naming convention.
+
+Read more: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
+
+For exmaple if we want to find IP of a servive (A record), the name is as `my-svc.my-namespace.svc.cluster-domain.example`
+
+In our case it is `kubernetes.default.svc.cluster.local`
+
+Lets see if our dsn server which we port-forwarded can tell us what IP `kubernetes.default.svc.cluster.local` points to.
+
+```
+$ dig @127.0.0.1 -p 32053 kube-dns.kube-system.svc.cluster.local +tcp
+;; ANSWER SECTION:
+kube-dns.kube-system.svc.cluster.local.	30 IN A	10.96.0.10
+```
+
+Notice Cloudflare DSN server has no clue about our dns records inside our cluster.
+
+```
+$ dig @1.1.1.1 kube-dns.kube-system.svc.cluster.local
+# You wont get any IP here!
+```
+
+Tip: If you are wondering how we created `kubernetes.default.svc.cluster.local` from `my-svc.my-namespace.svc.cluster-domain.example` format, this how:
+my-svc: name of the service you saw in `kubectl --context kind-kind -n default get services`. It was `kubernetes`.
+my-namespace: the namespace that service exists there. In our command we were searching `default` namespace. So our service is there.
+svc: this is just an string. copy it there.
+cluster-domain.example: This one can be set for clustsers. By default it is `cluster.local` but it might be different in different setups. It is part of the dsn config! 
+
+```
+# Kuberentes applications offers a resource that we can to store configureation in plain text and use that config in our Pods.
+# It is called ConfigMap. The ConfigMap for `coredns` can we check using:
+$ kubectl --context kind-kind -n kube-system get configmaps coredns -o yaml
+kubectl --context kind-kind -n kube-system get configmaps coredns -o yaml
+apiVersion: v1
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+           lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+           pods insecure
+           fallthrough in-addr.arpa ip6.arpa
+           ttl 30
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf
+        cache 30
+        loop
+        reload
+        loadbalance
+    }
+kind: ConfigMap
+
+# Notice many setting of our DSN server is here like which port it listens to, ttl and of course you can find `cluster.local` there.
+# If you like you can edit this configMap (and in general many resource which support `delete` command):
+$ kubectl --context kind-kind -n kube-system edit configmaps coredns
+```
+
