@@ -930,6 +930,34 @@ We will go into service accounts details later.
 
 #### Addons: Container Resource Monitoring
 Read more: https://kubernetes.io/docs/tasks/debug-application-cluster/resource-usage-monitoring/
+Read more: https://github.com/kubernetes-sigs/metrics-server
+Bug for kind: https://github.com/kubernetes-sigs/kind/issues/398
+
+There is different ways to collect information about resource usage in your cluster. One way which is used on both Horizontal and Vertical Pods Autoscaling is the metric-server.
+
+If you enable it, then you can use it for very useful command like `top pods` and `top nodes`. Lets enable it.
+
+```
+$ kubectl --content kind-kind appply -f 00_configs/metrics_for_kind.yaml
+# Wait for few second to metrics-server starts and collects some info.
+# Then try these two
+$ kubectl --context kind-kind -n kube-system top pod
+NAME                                         CPU(cores)   MEMORY(bytes)
+coredns-6955765f44-2ncs9                     8m           6Mi
+coredns-6955765f44-zfhk9                     8m           6Mi
+etcd-kind-control-plane                      46m          32Mi
+kindnet-2vthx                                3m           5Mi
+kube-apiserver-kind-control-plane            113m         219Mi
+kube-controller-manager-kind-control-plane   53m          32Mi
+kube-proxy-dwx64                             2m           8Mi
+kube-scheduler-kind-control-plane            8m           11Mi
+metrics-server-6ffdb54684-96xk6              2m           12Mi
+
+$ kubectl --context kind-kind -n kube-system top node
+NAME                 CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+kind-control-plane   317m         5%     648Mi           16%
+```
+
 
 #### Addons: Cluster-level Logging
 Read more: https://kubernetes.io/docs/concepts/cluster-administration/logging/
