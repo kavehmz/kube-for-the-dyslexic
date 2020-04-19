@@ -637,8 +637,6 @@ docker exec -ti kind-control-plane /bin/bash -c 'systemctl stop kubelet'
 
 kubectl --context kind-kind get nodes
 kubectl --context kind-kind describe node kind-control-plane
-
-
 ```
 
 
@@ -692,8 +690,6 @@ c7b024bf42b37       134ad2332e042       16 hours ago        Running             
 
 ## Addons
 Addons use Kubernetes resources (DaemonSet, Deployment, etc) to implement cluster features. Because these are providing cluster-level features, namespaced resources for addons belong within the kube-system namespace.
-
-
 
 
 #### Addons: DNS
@@ -770,7 +766,7 @@ $ dig @127.0.0.1 -p 32053 kube-dns.kube-system.svc.cluster.local +tcp
 kube-dns.kube-system.svc.cluster.local.	30 IN A	10.96.0.10
 ```
 
-Notice Cloudflare DSN server has no clue about our dns records inside our cluster.
+Notice Cloudflare DSN server has no clue about dns records inside our cluster.
 
 ```
 $ dig @1.1.1.1 kube-dns.kube-system.svc.cluster.local
@@ -811,8 +807,129 @@ data:
     }
 kind: ConfigMap
 
-# Notice many setting of our DSN server is here like which port it listens to, ttl and of course you can find `cluster.local` there.
-# If you like you can edit this configMap (and in general many resource which support `delete` command):
+# Notice many setting of our DSN server is in ConfigMap like the port it listens to, ttl and of course you can find `cluster.local` there.
+# If you like you can edit this configMap (and in general many resource which support `edit` command):
 $ kubectl --context kind-kind -n kube-system edit configmaps coredns
 ```
 
+#### Addons: Web UI
+Read more: https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/
+
+Dashboard is a general purpose, web-based UI for Kubernetes clusters. It allows users to manage and troubleshoot applications running in the cluster, as well as the cluster itself.
+
+`kind` won't install the Web UI and I also never found much use for it, but lets install and try it.
+
+```
+$ kubectl --context kind-kind apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.0-beta8/aio/deploy/recommended.yaml
+namespace/kubernetes-dashboard created
+serviceaccount/kubernetes-dashboard created
+service/kubernetes-dashboard created
+secret/kubernetes-dashboard-certs created
+secret/kubernetes-dashboard-csrf created
+secret/kubernetes-dashboard-key-holder created
+configmap/kubernetes-dashboard-settings created
+role.rbac.authorization.k8s.io/kubernetes-dashboard created
+clusterrole.rbac.authorization.k8s.io/kubernetes-dashboard created
+rolebinding.rbac.authorization.k8s.io/kubernetes-dashboard created
+clusterrolebinding.rbac.authorization.k8s.io/kubernetes-dashboard created
+deployment.apps/kubernetes-dashboard created
+service/dashboard-metrics-scraper created
+deployment.apps/dashboard-metrics-scraper created
+```
+
+It might be useful if you take a look at the yaml file content. Note it will create a namespace nemd `kubernetes-dashboard` and installing all resources in that namespace.
+
+To access it you need to use `kubectl proxy` command.
+
+```
+kkubectl --context kind-kind proxy --port=8001
+```
+Read more: https://kubernetes.io/docs/tasks/access-kubernetes-api/http-proxy-access-api/
+
+`proxy` comamnd authenticates you using the details in your kubeconfig, `~/.kube/config`. This is required whenever you want to communicate with Kuberenetes API.
+
+This gives you acceess to the API now. Before we get into Web UI lets try few calls ourselves!
+
+```
+# get all namespaces
+curl -X GET 'http://localhost:8001/api/v1/namespaces
+# get details of `default` namespace
+curl -X GET 'http://localhost:8001/api/v1/namespaces/default
+# get pods in `kube-system` namespace
+curl -X GET 'http://localhost:8001/api/v1/namespaces/kube-system/pods'
+```
+
+Notice all kubectl does is reading kubeconfig, authenticating with Kubernetes API and then sending similar command we just send using curl!
+
+Now lets check the Web UI. In your browser open the following URL:
+
+http://localhost:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy
+
+Notice we are asked for `Sign in`. Despite the fact that `kubectl` authenticated us using `kubeconfig` credentials, `kubectl` only connected us to the Kubernetes API so we can open this page.
+
+There is another concept that we will learn about it in details later but lets get a gimpse of it now, ServiceAccounts.
+A service account provides an identity for processes that run in a Pod.
+
+```
+# Lets create a new and empty namespace names `space`
+kubectl --context kind-kind create namespace space
+namespace/space created
+
+# We will create a new service account named `webui` in `space`
+kubectl --context kind-kind -n space create serviceaccount webui
+
+# Every service account we create adds a sercret that contains its details
+$ kubectl --context kind-kind -n space get serviceaccount
+NAME      SECRETS   AGE
+default   1         78s
+webui     1         45s
+$ kubectl --context kind-kind -n space get secrets
+NAME                  TYPE                                  DATA   AGE
+default-token-g8vkn   kubernetes.io/service-account-token   3      83s
+webui-token-mkmmz     kubernetes.io/service-account-token   3      50s
+
+# kubectl --context kind-kind -n space describe secret webui-token-mkmmz
+...
+Data
+====
+ca.crt:     1025 bytes
+namespace:  5 bytes
+token:      your_token_will_show_as_a_long_string_here
+
+# We will also create a nginx deployment in our namespace to have some pods running
+$ kubectl --context kind-kind -n space create deployment nginx --image=nginx
+deployment.apps/nginx created
+
+$ kubectl --context kind-kind -n space get pod
+NAME                     READY   STATUS    RESTARTS   AGE
+nginx-86c57db685-nspj7   1/1     Running   0          8s
+```
+
+That is it, the token which was generated for `webui-token` service account can be used for login. You should be able to see the nice UI at this point. Type `space` in namespace section and the go to Pods sections. Notice you won't see our pod running!
+
+You were able to authenticate and login but the service account we create has no authorizations yet. Lets bind it to one of the existing roles in Kubernetes named `view`.
+
+```
+# Lets bind `webui-view` in `space` to a cluster role named `view` and name the bidning `webui-view-binding`.
+$ kubectl --context kind-kind -n space create rolebinding webui-view-binding --clusterrole=view --serviceaccount=space:webui
+rolebinding.rbac.authorization.k8s.io/webui-view-binding created
+```
+
+Now go back to UI check that you should be able to see the nginx pod running. But still dont see resources in other namespaces (also you dont see the list of namespaces in the dropdown)
+
+```
+kubectl --context kind-kind create clusterrolebinding webui-view-binding --clusterrole=view --serviceaccount=space:webui
+clusterrolebinding.rbac.authorization.k8s.io/webui-view-binding created
+```
+
+Try again now. We created a clusterrolebinding that is not limited to one namespace anynmore. Now you are all namespaces and many resources.
+
+Explore the Web UI now.
+
+We will go into service accounts details later.
+
+#### Addons: Container Resource Monitoring
+Read more: https://kubernetes.io/docs/tasks/debug-application-cluster/resource-usage-monitoring/
+
+#### Addons: Cluster-level Logging
+Read more: https://kubernetes.io/docs/concepts/cluster-administration/logging/
