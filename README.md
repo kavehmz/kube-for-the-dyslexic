@@ -756,7 +756,7 @@ Read more: https://kubernetes.io/docs/concepts/services-networking/dns-pod-servi
 
 For exmaple if we want to find IP of a servive (A record), the name is as `my-svc.my-namespace.svc.cluster-domain.example`
 
-In our case it is `kubernetes.default.svc.cluster.local`
+In our case it is ` `
 
 Lets see if our dsn server which we port-forwarded can tell us what IP `kubernetes.default.svc.cluster.local` points to.
 
@@ -961,3 +961,106 @@ kind-control-plane   317m         5%     648Mi           16%
 
 #### Addons: Cluster-level Logging
 Read more: https://kubernetes.io/docs/concepts/cluster-administration/logging/
+
+In basic level Kuberentes depends on containers engines logging abilities.
+
+kubectl can fetch container logs using `kubectl logs` command. Clearly this depends on container being there! So if pod is removed (or evicted) or node which pod is running there is deleted, `kuebctl` doesn't have a chance to show any logs
+
+```
+$ kubectl --context kind-kind -n kube-system get pod
+NAME                                         READY   STATUS    RESTARTS   AGE
+coredns-6955765f44-kvhzt                     1/1     Running   0          10h
+coredns-6955765f44-wh6vk                     1/1     Running   0          10h
+etcd-kind-control-plane                      1/1     Running   0          10h
+kindnet-gjs9t                                1/1     Running   0          10h
+kube-apiserver-kind-control-plane            1/1     Running   0          10h
+kube-controller-manager-kind-control-plane   1/1     Running   0          10h
+
+# lets check the last 2 lines of logs in `coredns-6955765f44-kvhzt` pod
+$ kubectl --context kind-kind -n kube-system logs --tail 2 coredns-6955765f44-wh6vk
+CoreDNS-1.6.5
+linux/amd64, go1.13.4, c2fd1b2
+
+# lets check the last 2 lines of logs all pods in `kube-system` namespace which are labels as `k8s-app=kube-dns`
+kubectl --context kind-kind -n kube-system logs --tail 2 -l k8s-app=kube-dns
+CoreDNS-1.6.5
+linux/amd64, go1.13.4, c2fd1b2
+CoreDNS-1.6.5
+linux/amd64, go1.13.4, c2fd1b2
+```
+
+By default if your containers crash Kubernetes will restart them. Which means it will start a new container in the node (so empty logs!). But the kubelet (component for managing containers for pods on each node) keeps one terminated container with its logs. So after a container crashes in a pod we can still use `kubectl logs` to get logs for last execution plus current logs.
+
+```
+# renew our cluster
+$ kind delete cluster
+$ kind create cluster
+# then deploy hello app
+$ kubectl --context kind-kind -n default create deployment hello --image=hello-world
+
+
+But if we want a aggregated log from all running pods Kubernetes doesn't have any preferred solution.
+
+We need to handle logs collection (or cloud provider does it for us).
+
+Let's try something to understand the concept.
+
+We will install a rsyslog deployment to collects logs and we will use an app named `fluentd` to gather and send the data to rsyslog.
+
+```
+$ kubectl --context kind-kind apply -f 00_configs/syslog_fluentd/syslog.yaml
+service/rsyslog-service created
+deployment.apps/rsyslog created
+
+# kubectl --context kind-kind  get pod
+NAME                       READY   STATUS    RESTARTS   AGE
+rsyslog-6d498fb48b-wr27q   1/1     Running   0          12s
+$ kubectl --context kind-kind  get service
+NAME              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)           AGE
+rsyslog-service   ClusterIP   10.96.142.254   <none>        514/TCP,514/UDP   93s
+
+# so our setup is running. As you see there is a service which we can use to access the pod!
+# The way we can access this service using it full name is `rsyslog-service.default.svc.cluster.local`
+# that is what we set in 00_configs/syslog_fluentd/fluentd.yaml for SYSLOG_HOST
+# now lets install fluentd which is a DaemonSet and not a deployment!.
+$ kubectl --context kind-kind apply -f 00_configs/syslog_fluentd/fluentd.yaml
+serviceaccount/fluentd created
+clusterrole.rbac.authorization.k8s.io/fluentd created
+clusterrolebinding.rbac.authorization.k8s.io/fluentd created
+daemonset.apps/fluentd created
+```
+
+
+Note: We installed fluentd as as DaemonSet (look at 00_configs/syslog_fluentd/fluentd.yaml). Which means it is a bit different than deployment. It automatically creates one Pod on every node in Kuberentes. So if app by nature needs to be on every node it needs to be a DaemonSet. Like fluentd that will collect logs 
+
+```
+kubectl --context kind-kind -n kube-system get pod -o wide -l k8s-app=fluentd-logging
+NAME            READY   STATUS    RESTARTS   AGE    IP           NODE                 NOMINATED NODE   READINESS GATES
+fluentd-58qjc   1/1     Running   0          101s   10.244.1.3   kind-worker          <none>           <none>
+fluentd-bj74s   1/1     Running   0          101s   10.244.0.5   kind-control-plane   <none>           <none>
+```
+
+
+Now lets check what our fluentd is collecting and sending to our central logging system.
+
+```json
+$ kubectl --context kind-kind exec -ti  rsyslog-6d498fb48b-wr27q /bin/bash -- -c 'tail -n2 /var/log/messages'
+Apr 21 08:47:51 fluentd-xntgl fluentd: stream:stderr	log:I0421 08:47:45.704622       1 main.go:150] handling current node	docker:{"container_id"=>"e28e1cfb569fe22dcd58e081d84e7761ef84dfd125f3f2e4b3656613232c8864"}	kubernetes:{"container_name"=>"kindnet-cni", "namespace_name"=>"kube-system", "pod_name"=>"kindnet-fwtks", "container_image"=>"docker.io/kindest/kindnetd:0.5.4", "container_image_id"=>"sha256:2186a1a396deb58f1ea5eaf20193a518ca05049b46ccd754ec83366b5c8c13d5", "pod_id"=>"fb256bc1-711a-45f4-8c08-bb116e973887", "host"=>"kind-worker", "labels"=>{"app"=>"kindnet", "controller-revision-hash"=>"5b955bbc76", "k8s-app"=>"kindnet", "pod-template-generation"=>"1", "tier"=>"node"}, "master_url"=>"https://10.96.0.1:443/api", "namespace_id"=>"20fc7e8c-b6ef-4935-8e44-069efee7d4cd"}
+
+# Now install hello world app and check again
+$ kubectl --context kind-kind create  deployment hello --image=hello-world
+deployment.apps/hello created
+
+$ kubectl --context kind-kind exec -ti  rsyslog-6d498fb48b-wr27q /bin/bash -- -c 'tail -f -n100 /var/log/messages'|grep 'Hello from Docker'
+Apr 21 08:43:09 fluentd-xntgl fluentd: stream:stdout	log:Hello from Docker!	docker:{"container_id"=>"010d113083c001ea5cc203d715db508d9f5cd4f99f90f7eaa8971a3bf5f04570"}	kubernetes:{"container_name"=>"hello-world", "namespace_name"=>"default", "pod_name"=>"hello-67d96bb797-cxhfp", "container_image"=>"docker.io/library/hello-world:latest", "container_image_id"=>"docker.io/library/hello-world@sha256:8e3114318a995a1ee497790535e7b88365222a21771ae7e53687ad76563e8e76", "pod_id"=>"5372fa30-b1ab-46f6-840a-bd69e1ec83e1", "host"=>"kind-worker", "labels"=>{"app"=>"hello", "pod-template-hash"=>"67d96bb797"}, "master_url"=>"https://10.96.0.1:443/api", "namespace_id"=>"92264182-029f-4c80-bf20-53f259b13bbe"}
+```
+
+Next we move out side of Kubernetes core components and explore different API calls.
+
+```
+$ kubectl --context kind-kind api-resources
+NAME                              SHORTNAMES   APIGROUP                       NAMESPACED   KIND
+bindings                                                                      true         Binding
+componentstatuses                 cs                                          false        ComponentStatus
+configmaps                        cm                                          true         ConfigMap
+```
