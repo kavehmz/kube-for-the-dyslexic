@@ -1004,7 +1004,7 @@ $ kind delete cluster
 $ kind create cluster
 # then deploy hello app
 $ kubectl --context kind-kind -n default create deployment hello --image=hello-world
-
+```
 
 But if we want a aggregated log from all running pods Kubernetes doesn't have any preferred solution.
 
@@ -1050,7 +1050,7 @@ fluentd-bj74s   1/1     Running   0          101s   10.244.0.5   kind-control-pl
 
 Now lets check what our fluentd is collecting and sending to our central logging system.
 
-```json
+```
 $ kubectl --context kind-kind exec -ti  rsyslog-6d498fb48b-wr27q /bin/bash -- -c 'tail -n2 /var/log/messages'
 Apr 21 08:47:51 fluentd-xntgl fluentd: stream:stderr	log:I0421 08:47:45.704622       1 main.go:150] handling current node	docker:{"container_id"=>"e28e1cfb569fe22dcd58e081d84e7761ef84dfd125f3f2e4b3656613232c8864"}	kubernetes:{"container_name"=>"kindnet-cni", "namespace_name"=>"kube-system", "pod_name"=>"kindnet-fwtks", "container_image"=>"docker.io/kindest/kindnetd:0.5.4", "container_image_id"=>"sha256:2186a1a396deb58f1ea5eaf20193a518ca05049b46ccd754ec83366b5c8c13d5", "pod_id"=>"fb256bc1-711a-45f4-8c08-bb116e973887", "host"=>"kind-worker", "labels"=>{"app"=>"kindnet", "controller-revision-hash"=>"5b955bbc76", "k8s-app"=>"kindnet", "pod-template-generation"=>"1", "tier"=>"node"}, "master_url"=>"https://10.96.0.1:443/api", "namespace_id"=>"20fc7e8c-b6ef-4935-8e44-069efee7d4cd"}
 
