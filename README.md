@@ -1,5 +1,5 @@
 # kube-for-the-dyslexic
-This readme is a step by step explanation of how Kuberentes works.
+This readme is a step by step explanation of how Kubernetes works.
 
 I tried to write it in a way that doesn't need you memorizing anything.
 
@@ -7,11 +7,11 @@ You don't need to concentrate. Just read through and try the examples.
 
 I will repeat the concepts again and again through this readme.
 
-What you need is an installation of `docker`, `kubectl` and a tool named `kind` which is used by Kubernetes team itself for testing.
+What you need is an installation of `docker`, `kubectl` and a tool named `kind` which can create Kubernetes cluster in docker.
 
 Docker: https://docs.docker.com/get-docker/
 
-Kubeectl: https://kubernetes.io/docs/tasks/tools/install-kubectl/
+kubectl: https://kubernetes.io/docs/tasks/tools/install-kubectl/
 
 Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 
@@ -57,7 +57,7 @@ Set kubectl context to "kind-kind"
 You can now use your cluster with:
 
 # Lets check the setup now. You can see what containers are running using the following command.
-# kind started one container named kind-control-plane. This will act a Kuberentes node for kind.
+# kind started one container named kind-control-plane. This will act a Kubernetes node for kind.
 $ docker ps
 docker ps
 CONTAINER ID        IMAGE                  COMMAND                  CREATED              STATUS              PORTS                       NAMES
@@ -70,7 +70,7 @@ $ kubectl cluster-info --context kind-kind
 Kubernetes master is running at https://127.0.0.1:32772
 KubeDNS is running at https://127.0.0.1:32772/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
 
-# Do you remember we ran hello-world in docker? Kuberentes also uses containers to run stuff.
+# Do you remember we ran hello-world in docker? Kubernetes also uses containers to run stuff.
 # Lets just run the same image in Kubernetes too. 
 # Don't worry about details at all. Just try and get comfortable with the concepts.
 # create a deployment that uses our image. Deployments set details like which image, how many replica, max memory, ... 
@@ -83,8 +83,8 @@ NAME    READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS    IMAGES        SELE
 hello   0/1     1            0           3m4s   hello-world   hello-world   app=hello
 
 # But our containers run inside Pods!
-# Pods are the resources in Kubertenes that present a group of contaierns running in one node (yes you can run multiple images in a single pod)
-$ kubectl --context kind-kind get pod -owide
+# Pods are the resources in Kubernetes that present a group of containers running in one node (yes you can run multiple images in a single pod)
+$ kubectl --context kind-kind get pod -o wide
 NAME                     READY   STATUS             RESTARTS   AGE     IP           NODE                 NOMINATED NODE   READINESS GATES
 hello-67d96bb797-9rffr   0/1     CrashLoopBackOff   5          4m10s   10.244.0.6   kind-control-plane   <none>           <none>
 
@@ -338,7 +338,7 @@ kind v0.7.0 go1.13.6 darwin/amd64
 ```
 
 ### Create your cluster
-Creating a kuberentes clsuter using kind is simple
+Creating a Kubernetes clsuter using kind is simple
 
 ```bash
 $ make create-cluster
@@ -441,7 +441,7 @@ pods                              po                                          tr
 
 It is useful if you check the `Kind` for each api, `VERBS` you can use and if it is `NAMESPACED` or not.
 
-Later you will see how to extend Kuberentes API.
+Later you will see how to extend Kubernetes API.
 
 #### Control Plane Components: etcd
 Read more: https://etcd.io/docs
@@ -451,7 +451,7 @@ This is an other component which us used as a key value store in as Kubernetes.
 Lets try something here. (Notice all these components are in `kube-system`!)
 
 ```bash
-$ kubectl --context kind-kind -n kube-system  get pod -owide|grep etcd
+$ kubectl --context kind-kind -n kube-system  get pod -o wide|grep etcd
 NAME                                         READY   STATUS    RESTARTS   AGE    IP           NODE                 NOMINATED NODE   READINESS GATES
 etcd-kind-control-plane                      1/1     Running   0          5h7m   172.17.0.3   kind-control-plane   <none>           <none>
 ...
@@ -502,7 +502,7 @@ Control plane component that watches for newly created Pods with no assigned nod
 
 Lets explore what Pod means first. And also lets try concept of namespace.
 
-First, in kuberentes we are using containers to run our services. In our case we have a docker image named  that at the moment only exists in the local docker.  
+First, in Kubernetes we are using containers to run our services. In our case we have a docker image named  that at the moment only exists in the local docker.
 
 Before you try these command check content of the yaml files first. You might find the comments there useful.
 [Namepsace](./00_apps/echo_server/k8s/my_space.yaml)
@@ -531,7 +531,7 @@ $ kubectl --context kind-kind --namespace my-space describe pod echo
   Normal   BackOff    2m48s (x85 over 3h40m)  kubelet, kind-control-plane  Back-off pulling image "local-echo-server:latest"
 ```
 
-First, in kuberentes we are using containers to run our services. In our case we have a docker image named `local-echo-server:latest` that at the moment only exists in the local docker. That image is required by the container named `echo-container` (look at the yaml file to find both names).
+First, in Kubernetes we are using containers to run our services. In our case we have a docker image named `local-echo-server:latest` that at the moment only exists in the local docker. That image is required by the container named `echo-container` (look at the yaml file to find both names).
 Second image we use need to be accessible to the cluster! In nonral situations it means a docker registry like [docker hub](https://hub.docker.com/) or a private one that needs login.
 
 In our case (which is special to kind) we have a command
@@ -608,7 +608,7 @@ An agent that runs on each node in the cluster. It makes sure that containers ar
 
 Lets check all these:
 ```
-# first lets delete any current Kuberentes cluster in `kind`
+# first lets delete any current Kubernetes cluster in `kind`
 $ kind delete cluster
 Deleting cluster "kind" ...
 
@@ -704,7 +704,7 @@ Lets find our DNS server.
 ```
 # Here instead of just getting all pods and using a `grep` to filter for dns we are getting all pods which are labelled as `k8s-app=kube-dns`
 # You can check definition of pods and their labels using `describe pod pod_name` command if you don't know the labels for a specific pod
-$ kubectl --context kind-kind -n kube-system get pod -owide -l k8s-app=kube-dns
+$ kubectl --context kind-kind -n kube-system get pod -o wide -l k8s-app=kube-dns
 NAME                       READY   STATUS    RESTARTS   AGE   IP           NODE                 NOMINATED NODE   READINESS GATES
 coredns-6955765f44-7nqw2   1/1     Running   0          16h   10.244.0.2   kind-control-plane   <none>           <none>
 coredns-6955765f44-b7szn   1/1     Running   0          16h   10.244.0.4   kind-control-plane   <none>           <none>
@@ -749,7 +749,7 @@ kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   16h
 
 We can find one service in `default` namespace. It is a service for our api-server.
 Its IP inside cluster is `10.96.0.1`. But this IP could be different and can change!
-Our applications inside Kuberentes might not be able to rely on static IP to find each other.
+Our applications inside Kubernetes might not be able to rely on static IP to find each other.
 So there is a naming convention.
 
 Read more: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
@@ -780,7 +780,7 @@ svc: this is just an string. copy it there.
 cluster-domain.example: This one can be set for clustsers. By default it is `cluster.local` but it might be different in different setups. It is part of the dsn config! 
 
 ```
-# Kuberentes applications offers a resource that we can to store configureation in plain text and use that config in our Pods.
+# Kubernetes applications offers a resource that we can to store configureation in plain text and use that config in our Pods.
 # It is called ConfigMap. The ConfigMap for `coredns` can we check using:
 $ kubectl --context kind-kind -n kube-system get configmaps coredns -o yaml
 kubectl --context kind-kind -n kube-system get configmaps coredns -o yaml
@@ -962,7 +962,7 @@ kind-control-plane   317m         5%     648Mi           16%
 #### Addons: Cluster-level Logging
 Read more: https://kubernetes.io/docs/concepts/cluster-administration/logging/
 
-In basic level Kuberentes depends on containers engines logging abilities.
+In basic level Kubernetes depends on containers engines logging abilities.
 
 kubectl can fetch container logs using `kubectl logs` command. Clearly this depends on container being there! So if pod is removed (or evicted) or node which pod is running there is deleted, `kuebctl` doesn't have a chance to show any logs
 
@@ -1031,7 +1031,7 @@ daemonset.apps/fluentd created
 ```
 
 
-Note: We installed fluentd as as DaemonSet (look at 00_configs/syslog_fluentd/fluentd.yaml). Which means it is a bit different than deployment. It automatically creates one Pod on every node in Kuberentes. So if app by nature needs to be on every node it needs to be a DaemonSet. Like fluentd that will collect logs 
+Note: We installed fluentd as as DaemonSet (look at 00_configs/syslog_fluentd/fluentd.yaml). Which means it is a bit different than deployment. It automatically creates one Pod on every node in Kubernetes. So if app by nature needs to be on every node it needs to be a DaemonSet. Like fluentd that will collect logs from all nodes.
 
 ```
 kubectl --context kind-kind -n kube-system get pod -o wide -l k8s-app=fluentd-logging
