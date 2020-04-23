@@ -7,6 +7,8 @@ You don't need to concentrate. Just read through and try the examples.
 
 I will repeat the concepts again and again through this readme.
 
+You just need to follow the steps and absorb as much as you can.
+
 What you need is an installation of `docker`, `kubectl` and a tool named `kind` which can create Kubernetes cluster in docker.
 
 Docker: https://docs.docker.com/get-docker/
