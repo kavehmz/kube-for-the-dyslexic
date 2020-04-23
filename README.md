@@ -19,14 +19,17 @@ Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 ## Verify Your Tools
 
 Make sure your docker is working and you have a recent enough version (>18).
-```
+```bash
 $ docker version
 Client: Docker Engine - Community
  Version:           19.03.8
+```
 
-# Make sure the following works fine.
-# Here you want to run an image named `hello-world` in a container. This is a simple app and just prints some stuff.
-# Your docker will first check if image exists locally and if not docker tries to find it in docker registry servers it knows.
+Make sure the following works fine.
+Here you want to run an image named `hello-world` in a container. This is a simple app and just prints some stuff.
+Your docker will first check if image exists locally and if not docker tries to find it in registry servers it knows.
+
+```
 $ docker run hello-world
 Unable to find image 'hello-world:latest' locally
 latest: Pulling from library/hello-world
@@ -35,6 +38,34 @@ Digest: sha256:f9dfddf63636d84ef479d645ab5885156ae030f611a56f3a7ac7f2fdd86d7e4e
 Status: Downloaded newer image for hello-world:latest
 Hello from Docker!
 ```
+
+If you like to get more info about your docker setup use `docker info`.
+
+```
+$ docker info
+Client:
+ Debug Mode: false
+
+Server:
+ Containers: 9
+  Running: 1
+  Paused: 0
+  Stopped: 8
+ Images: 22
+ Server Version: 19.03.8
+ Storage Driver: overlay2
+  Backing Filesystem: <unknown>
+  Supports d_type: true
+  Native Overlay Diff: true
+ Logging Driver: json-file
+ Cgroup Driver: cgroupfs
+ Plugins:
+  Volume: local
+  Network: bridge host ipvlan macvlan null overlay
+  Log: awslogs fluentd gcplogs gelf journald json-file local logentries splunk syslog
+...
+```
+
 
 Verify your `kubectl`.
 ```
@@ -55,25 +86,63 @@ Creating cluster "kind" ...
  ✓ Installing StorageClass 💾
 Set kubectl context to "kind-kind"
 You can now use your cluster with:
+```
 
-# Lets check the setup now. You can see what containers are running using the following command.
-# kind started one container named kind-control-plane. This will act a Kubernetes node for kind.
+Lets check the setup now. You can see what containers are running using `docker`.
+```
 $ docker ps
 docker ps
 CONTAINER ID        IMAGE                  COMMAND                  CREATED              STATUS              PORTS                       NAMES
 95623bda34ec        kindest/node:v1.17.0   "/usr/local/bin/entr…"   About a minute ago   Up About a minute   127.0.0.1:32772->6443/tcp   kind-control-plane
+```
 
+kind started one container named kind-control-plane. This will act as a Kubernetes node for kind.
+In Kubernetes we create several nodes (in this case only one) and start main Kubernetes components on them. In a more standard setup you will have more nodes. Some nodes will only run Kubernetes control plane components and some nodes for running other work loads.
 
-# The kubectl cluster-info prints information about the control plane and add-ons. You will see later what they mean.
-# For now we have the api server (as main component) and only KubeDNS (as addon)
+Lets delete the cluster now. `kind` is a very light tool so don't be afraid of recreating your cluster to have a new one.
+
+```
+$ kind delete cluster
+Deleting cluster "kind" ...
+```
+
+This time we create a new cluster but by giving `kind` a [config file](./00_configs/kind_two_nodes.yaml). Look inside the config file and see how this time we are instructing `kind` to create two nodes.
+
+```
+$ kind create cluster --config 00_configs/kind_two_nodes.yaml
+Creating cluster "kind" ...
+ ✓ Ensuring node image (kindest/node:v1.17.0) 🖼
+ ✓ Preparing nodes 📦 📦
+ ✓ Writing configuration 📜
+ ✓ Starting control-plane 🕹️
+ ✓ Installing CNI 🔌
+ ✓ Installing StorageClass 💾
+ ✓ Joining worker nodes 🚜
+
+# lets check the docker containers again
+$ docker ps
+CONTAINER ID        IMAGE                  COMMAND                  CREATED             STATUS              PORTS                       NAMES
+944688070a50        kindest/node:v1.17.0   "/usr/local/bin/entr…"   2 minutes ago       Up 2 minutes        127.0.0.1:32774->6443/tcp   kind-control-plane
+d194a2e44c85        kindest/node:v1.17.0   "/usr/local/bin/entr…"   2 minutes ago       Up 2 minutes                                    kind-worker
+
+# Lets check kubectl report about nodes too!
+$ kubectl --context kind-kind  get node
+NAME                 STATUS   ROLES    AGE     VERSION
+kind-control-plane   Ready    master   3m20s   v1.17.0
+kind-worker          Ready    <none>   2m48s   v1.17.0
+```
+
+The `kubectl cluster-info` prints information about the control-plane and add-ons. You will see later what they mean. For now we have the api server (as main component) and only KubeDNS (as addon)
+```
 $ kubectl cluster-info --context kind-kind
 Kubernetes master is running at https://127.0.0.1:32772
 KubeDNS is running at https://127.0.0.1:32772/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+```
 
-# Do you remember we ran hello-world in docker? Kubernetes also uses containers to run stuff.
-# Lets just run the same image in Kubernetes too. 
-# Don't worry about details at all. Just try and get comfortable with the concepts.
-# create a deployment that uses our image. Deployments set details like which image, how many replica, max memory, ... 
+If all above was OK we can try running `hello-world` but this time in Kubernetes. Kubernetes also uses containers to run stuff. Don't worry about the details. We will go through all these details. Just try get the feel of command and concepts.
+
+```
+# Create a deployment that uses our image. Deployments set details like which image, how many replica, max memory, ... 
 $ kubectl --context kind-kind create  deployment hello --image=hello-world
 deployment.apps/hello created
 
@@ -163,7 +232,7 @@ Events:
   ----    ------            ----  ----                   -------
   Normal  SuccessfulCreate  14m   replicaset-controller  Created pod: hello-67d96bb797-9rffr
 
-# Last describe show our repicaset `hello-67d96bb797` created a pod named `hello-67d96bb797-9rffr`.
+# Last describe shows our repicaset `hello-67d96bb797` created a pod named `hello-67d96bb797-9rffr`.
 # So Deployment created ReplicaSet which in turn created our Pod.
 # Later you will see the next part of Kuberetnes flow which a service named `kubelet` uses the Pod definition and pulls our image and starts our container as it was indicated in Pod details.
 $ kubectl --context kind-kind get pod
@@ -176,53 +245,22 @@ $ kind delete cluster
 Deleting cluster "kind" ...
 ```
 
-### Docker
-You need to install docker. Take a look at the [README](01_prepare_your_tools/README.md) if you want.
+### Creating a Docker Image
+Now lets create a docker image and run it in a container to have a feel for how it works.
 
-When you have docker ready, you can use the following command to build the image that has all you need.
+We will create an image named `local-echo` which includes a simple http server that echos what we send send to it.
 
-```bash
-$ make build
-```
+In docker images are defined by Dockerfile which is a list of steps, starting `FROM` a base image and then step by step `COPY` or `RUN` commands in that base image to change it. For example starting `FROM` a `golang:1` image naming it `build`, then `COPY`ing some Go files and compiling them to have a binary file. Then switching to a new image `debian:stable-slim` to start clean and just copying the binary file from previous steps. the result will be our image which we will use to run our app.
 
-Tip: `make` command reads the [Makefile](./Makefile) and runs the section you mentioned, `build` in our case`. That is it.
+You can see the details in this [Dockerfile](./00_apps/Dockerfile). It is easy to understand.
+Read more: https://docs.docker.com/engine/reference/builder/
 
-If you like to see what you just build do this:
-
-```bash
-$ make run
-```
-
-You should be able to start your containers see be places inside it in a shell prompt. Try a echo command.
-
-```bash
-docker build -t local-k8s-tools -f 01_prepare_your_tools/Dockerfile . > /dev/null
-docker run -ti --rm --name local-k8s-tools \
-		-e HOME=/home/user \
-		-v $PWD/00_data/home:/home/user \
-		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v $PWD:/workspace \
-		local-k8s-tools
-root@c6bc506827ce:/workspace# echo "Hellow World"
-Hellow World
-```
-
-### Echo And Relay Apps
-Now lets create two apps.
-One named `echo` which is a simple http server that echos what we send send to it.
-The other one is `relay` which relays our request to `echo` to serve it.
-
-For now we just need two create a two docker images that conains the binary code of these two apps.
-These two are written in Go language but we don't need anything but Docker again. We will compile these apps inside docker.
-
-You can see how in this [Dockerfile](./00_apps/Dockerfile).
-
-To create your images run the following make commands
+To create your images run the following command:
 
 echo:
 ```bash
-$ make build-echo
-docker build -t local-echo-server:latest -f 00_apps/Dockerfile 00_apps/echo_server
+# local-echo-server:latest is full name of the image (repository:tag)
+$ docker build -t local-echo-server:latest -f 00_apps/Dockerfile 00_apps/echo_server
 Sending build context to Docker daemon  5.167kB
 Step 1/7 : FROM golang:1 AS build
  ---> 315fc470b445
@@ -246,47 +284,29 @@ Removing intermediate container 27b75c6508dc
  ---> 7167ae5a3fe4
 Successfully built 7167ae5a3fe4
 Successfully tagged local-echo-server:latest
+
+# List the images that you have locally
+$ docker images
+docker images
+REPOSITORY                            TAG                 IMAGE ID            CREATED              SIZE
+<none>                                <none>              52c9ea485687        About a minute ago   817MB
+local-echo-server                     latest              46e818efa1f7        9 days ago           76.8MB
+golang                                1                   315fc470b445        2 weeks ago          809MB
+debian                                stable-slim         e7e5f8b110eb        3 weeks ago          69.2MB
+kindest/node                          <none>              ec6ab22d89ef        3 months ago         1.23GB
+hello-world                           latest              fce289e99eb9        15 months ago        1.84kB
 ```
 
-and relay:
-```bash
-make build-relay
-docker build -t local-relay-server:latest -f 00_apps/Dockerfile 00_apps/relay_server
-Sending build context to Docker daemon  5.679kB
-Step 1/7 : FROM golang:1 AS build
- ---> 315fc470b445
-Step 2/7 : COPY . /workspace
- ---> c987057e0d7f
-Step 3/7 : WORKDIR /workspace
- ---> Running in 1b4f5aa3ab2a
-Removing intermediate container 1b4f5aa3ab2a
- ---> 68717c19f285
-Step 4/7 : RUN go build -o /usr/local/bin/my_service main.go
- ---> Running in 60b752124952
-Removing intermediate container 60b752124952
- ---> 4a52d22e3ce6
-Step 5/7 : FROM debian:stable-slim
- ---> e7e5f8b110eb
-Step 6/7 : COPY --from=build /usr/local/bin/my_service /usr/local/bin/my_service
- ---> 8a4ec2b58c2b
-Step 7/7 : ENTRYPOINT [ "/usr/local/bin/my_service" ]
- ---> Running in 37812c90f84b
-Removing intermediate container 37812c90f84b
- ---> 854981eb023c
-Successfully built 854981eb023c
-Successfully tagged local-relay-server:latest
-```
 
-### Testing echo using Docker
-Lets see how we can test `echo`.
+### Running your container in docker
+Lets see how we can test our `echo` app.
 
 We will run echo as a docker container so it runs isolated from out local environment.
 Echo is a server that listens for http requests on port `8080`.
-Notice we need to __expose__ that 8080 port from inside the contaier to outside.
-For future reference remember that Kubernetes needs to do the same! We will try to see how in future steps.
+Notice we need to __expose__ that 8080 port from inside the container to outside.
+Notice that Kubernetes needs to do the same! We will see how in future steps.
 
 Lets run `echo` server and test it.
-
 ```bash
 $ make run-echo
 docker run -ti -p 8081:8080 local-echo-server
@@ -303,10 +323,10 @@ CONTAINER ID        IMAGE               COMMAND                  CREATED        
 fb7a32ccc83f        local-echo-server   "/usr/local/bin/my_s…"   About a minute ago   Up About a minute   0.0.0.0:8081->8080/tcp   condescending_nightingale
 ```
 
-Pay attension to how `PORTS` sections indicates that we have a mapping from 0.0.0.0:8001 in local environemnt to 8080 port in container (on TCP).
+Pay attention to how `PORTS` sections indicates that we have a mapping from 0.0.0.0:8001 in local environment to 8080 port in container (on TCP).
 We set an option `-p 8081:8080` for this in our `docker run`.
 
-We can try and send a request. Our app inside container is listening to port 8080 but docker is exposing port 8081:
+We can try and send a request. Our app inside container is listening to port 8080 but docker is mapping port 8081 in our local environment to port 8080 inside the container.:
 
 ```
 $ curl http://localhost:8081/echo?message=hello
@@ -322,23 +342,8 @@ docker stop local-echo-server
 local-echo-server
 ```
 
-If you like start our container and map different ports and see what happens.
-
-### Kubernetes Using kind
-Now we need to create our Kubernetes cluster to run our two apps in there.
-
-As said we will use [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/).
-kind is a tool for running local Kubernetes clusters using Docker container “nodes”.
-
-Verify if you have the kind command ready,
-
-```bash
-$ kind version
-kind v0.7.0 go1.13.6 darwin/amd64
-```
-
 ### Create your cluster
-Creating a Kubernetes clsuter using kind is simple
+Creating a Kubernetes cluster using kind is simple
 
 ```bash
 $ make create-cluster
@@ -366,7 +371,7 @@ CONTAINER ID        IMAGE                  COMMAND                  CREATED     
 ea58ca5b4aaa        kindest/node:v1.17.0   "/usr/local/bin/entr…"   About a minute ago   Up About a minute   127.0.0.1:32772->6443/tcp   kind-control-plane
 ```
 
-and lets see if our kubectl command works now.
+Let's see what kubectl shows.
 
 ```bash
 $ kubectl --context kind-kind get all --all-namespaces
@@ -398,9 +403,9 @@ kube-system          replicaset.apps/coredns-6955765f44                  2      
 local-path-storage   replicaset.apps/local-path-provisioner-7745554f7f   1         1         1       3m11s
 ```
 
-As you see that single container created a lot of stuff. Lets explain it a bit.
+As you see that single container created a lot of stuff. In next steps you will see what those are.
 
-### How Kubernetes Works
+## How Kubernetes Works
 Read more here: https://kubernetes.io/docs/concepts/overview/components/
 
 But in general we have three parts:
@@ -409,7 +414,7 @@ But in general we have three parts:
 * `Addons` 
 
 
-#### Control Plane Components: kube-apiserver
+### Control Plane Components: kube-apiserver
 Read more here: https://kubernetes.io/docs/concepts/overview/components/#kube-apiserver
 
 The API server is a component of the Kubernetes control plane that exposes the Kubernetes API.
@@ -443,7 +448,7 @@ It is useful if you check the `Kind` for each api, `VERBS` you can use and if it
 
 Later you will see how to extend Kubernetes API.
 
-#### Control Plane Components: etcd
+### Control Plane Components: etcd
 Read more: https://etcd.io/docs
 
 This is an other component which us used as a key value store in as Kubernetes.
