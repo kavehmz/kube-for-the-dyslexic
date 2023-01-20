@@ -1,15 +1,15 @@
 # kube-for-the-dyslexic
-This readme is a step by step explanation of how Kubernetes works.
+This readme is a step-by-step explanation of how Kubernetes works.
 
-I tried to write it in a way that doesn't need you memorizing anything.
+I tried to write it in a way that doesn't need you to memorize anything.
 
-You don't need to concentrate. Just read through and try the examples.
+You don't need to concentrate. Read through and try the examples.
 
 I will repeat the concepts again and again through this readme.
 
-You just need to follow the steps and absorb as much as you can.
+You need to follow the steps and absorb as much as you can.
 
-What you need is an installation of `docker`, `kubectl` and a tool named `kind` which can create Kubernetes cluster in docker.
+You need an installation of `docker, `kubectl`, and a tool named `kind` which can create a Kubernetes cluster in docker.
 
 Docker: https://docs.docker.com/get-docker/
 
@@ -20,16 +20,17 @@ Kind: https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 
 ## Verify Your Tools
 
-Make sure your docker is working and you have a recent enough version (>18).
+Ensure your docker is working and you have a recent enough version (>18).
+
 ```bash
 $ docker version
 Client: Docker Engine - Community
- Version:           19.03.8
+Version:           19.03.8
 ```
 
 Make sure the following works fine.
-Here you want to run an image named `hello-world` in a container. This is a simple app and just prints some stuff.
-Your docker will first check if image exists locally and if not docker tries to find it in registry servers it knows.
+Here you want to run an image named `hello-world` in a container. `hello-world` is a simple app that prints some stuff.
+Your docker will first check if the image exists locally; if not, docker tries to find it in the registry servers it knows.
 
 ```
 $ docker run hello-world
